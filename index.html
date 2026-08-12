@@ -183,7 +183,12 @@
     }, 1000);
 
     try {
-      const resp = await fetch(WEBHOOK_URL, { method: 'GET' });
+      const resp = await fetch(WEBHOOK_URL, {
+        method: 'GET',
+        headers: {
+          'ngrok-skip-browser-warning': 'true'
+        }
+      });
 
       if (!resp.ok) {
         throw new Error('El servidor respondió con error ' + resp.status);
