@@ -315,13 +315,12 @@
 
     try {
       const formData = new FormData();
-      // Se agregan en el orden fijo de BANCOS, salteando los que no se cargaron
-      // — así el índice dataN (0, 1, 2...) que arma n8n queda predecible aunque
-      // falten bancos en el medio del orden.
+      // Se manda SIEMPRE una parte por cada banco, en el orden fijo de BANCOS
+      // — el que no se cargó va como archivo vacío (0 bytes), así data0..data5
+      // en n8n nunca se corren de posición, mandes lo que mandes.
       BANCOS.forEach(banco => {
-        if (archivos[banco.key]) {
-          formData.append(banco.key, archivos[banco.key]);
-        }
+        const archivo = archivos[banco.key] || new File([], banco.key + '_vacio.xlsx');
+        formData.append(banco.key, archivo);
       });
 
       const resp = await fetch(WEBHOOK_URL, {
