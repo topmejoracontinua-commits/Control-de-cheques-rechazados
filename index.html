@@ -30,7 +30,7 @@
   }
   .card {
     width: 100%;
-    max-width: 480px;
+    max-width: 560px;
     background: #fff;
     border-radius: 16px;
     box-shadow: 0 8px 30px rgba(15,23,42,.08);
@@ -58,6 +58,12 @@
     padding: 32px;
     text-align: center;
   }
+  .ayuda-envio {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0 0 14px;
+    text-align: left;
+  }
   #btnGenerar {
     width: 100%;
     padding: 14px 20px;
@@ -72,15 +78,15 @@
   }
   #btnGenerar:hover:not(:disabled) { background: var(--blue-dark); }
   .dropzones {
-    display: flex;
-    gap: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
     margin-bottom: 20px;
   }
   .dropzone {
-    flex: 1;
     border: 2px dashed #cbd5e1;
     border-radius: 10px;
-    padding: 18px 10px;
+    padding: 14px 8px;
     text-align: center;
     cursor: pointer;
     transition: border-color .15s, background .15s;
@@ -96,12 +102,12 @@
   }
   .dropzone .banco-nombre {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 12.5px;
     color: var(--ink);
   }
   .dropzone .archivo-info {
-    margin-top: 6px;
-    font-size: 11.5px;
+    margin-top: 5px;
+    font-size: 10.5px;
     color: var(--muted);
     word-break: break-all;
   }
@@ -170,16 +176,38 @@
     <p>Cruce entre extracto bancario y líneas cargadas en Odoo</p>
   </div>
   <div class="card-body">
+    <p class="ayuda-envio">Subí los extractos que tengas a mano — no hace falta completar los 6, con al menos 1 ya podés generar el reporte.</p>
+
     <div class="dropzones">
       <label class="dropzone" id="dropGalicia" for="fileGalicia">
-        <div class="banco-nombre">📄 Extracto Galicia</div>
-        <div class="archivo-info" id="infoGalicia">Arrastrá o tocá para elegir</div>
+        <div class="banco-nombre">📄 Galicia</div>
+        <div class="archivo-info" id="infoGalicia">Arrastrá o tocá</div>
         <input type="file" id="fileGalicia" accept=".xlsx,.xls">
       </label>
       <label class="dropzone" id="dropFrances" for="fileFrances">
-        <div class="banco-nombre">📄 Extracto Francés</div>
-        <div class="archivo-info" id="infoFrances">Arrastrá o tocá para elegir</div>
+        <div class="banco-nombre">📄 Francés</div>
+        <div class="archivo-info" id="infoFrances">Arrastrá o tocá</div>
         <input type="file" id="fileFrances" accept=".xlsx,.xls">
+      </label>
+      <label class="dropzone" id="dropPatagonia" for="filePatagonia">
+        <div class="banco-nombre">📄 Patagonia</div>
+        <div class="archivo-info" id="infoPatagonia">Arrastrá o tocá</div>
+        <input type="file" id="filePatagonia" accept=".xlsx,.xls">
+      </label>
+      <label class="dropzone" id="dropNacion" for="fileNacion">
+        <div class="banco-nombre">📄 Nación</div>
+        <div class="archivo-info" id="infoNacion">Arrastrá o tocá</div>
+        <input type="file" id="fileNacion" accept=".xlsx,.xls">
+      </label>
+      <label class="dropzone" id="dropMacro" for="fileMacro">
+        <div class="banco-nombre">📄 Macro</div>
+        <div class="archivo-info" id="infoMacro">Arrastrá o tocá</div>
+        <input type="file" id="fileMacro" accept=".xlsx,.xls">
+      </label>
+      <label class="dropzone" id="dropCorrientes" for="fileCorrientes">
+        <div class="banco-nombre">📄 Corrientes</div>
+        <div class="archivo-info" id="infoCorrientes">Arrastrá o tocá</div>
+        <input type="file" id="fileCorrientes" accept=".csv">
       </label>
     </div>
 
@@ -201,19 +229,42 @@
 </div>
 
 <script>
-  // ⚠️ Si el link de ngrok cambia, actualizar acá:
-  const WEBHOOK_URL = "https://envy-recollect-last.ngrok-free.dev/webhook/cheques-rechazados";
+  // ⚠️ URL DE TEST — recordá volver a la de producción antes de compartir el link:
+  // https://envy-recollect-last.ngrok-free.dev/webhook/cheques-rechazados
+  const WEBHOOK_URL = "https://envy-recollect-last.ngrok-free.dev/webhook-test/cheques-rechazados";
 
-  let archivoGalicia = null;
-  let archivoFrances = null;
+  // Orden fijo: define qué campo (dataN) recibe cada banco en n8n.
+  // Si agregás o reordenás bancos acá, hay que actualizar los nodos
+  // "Extract <banco>" en n8n para que el Input Binary Field coincida.
+  const BANCOS = [
+    { key: 'galicia',    label: 'Galicia' },
+    { key: 'frances',    label: 'Frances' },
+    { key: 'patagonia',  label: 'Patagonia' },
+    { key: 'nacion',     label: 'Nacion' },
+    { key: 'macro',      label: 'Macro' },
+    { key: 'corrientes', label: 'Corrientes' }
+  ];
 
-  function setupDropzone(dropId, inputId, infoId, onFile) {
+  const archivos = {}; // key: File
+
+  function setupDropzone(banco) {
+    const dropId = 'drop' + banco.label;
+    const inputId = 'file' + banco.label;
+    const infoId = 'info' + banco.label;
+
     const drop = document.getElementById(dropId);
     const input = document.getElementById(inputId);
     const info = document.getElementById(infoId);
 
+    function asignar(file) {
+      archivos[banco.key] = file;
+      info.textContent = file.name;
+      drop.classList.add('completo');
+      actualizarBoton();
+    }
+
     input.addEventListener('change', () => {
-      if (input.files[0]) onFile(input.files[0]);
+      if (input.files[0]) asignar(input.files[0]);
     });
 
     drop.addEventListener('dragover', (e) => {
@@ -224,29 +275,16 @@
     drop.addEventListener('drop', (e) => {
       e.preventDefault();
       drop.classList.remove('dragover');
-      if (e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files[0]) asignar(e.dataTransfer.files[0]);
     });
-
-    return { drop, info };
   }
+
+  BANCOS.forEach(setupDropzone);
 
   function actualizarBoton() {
-    document.getElementById('btnGenerar').disabled = !(archivoGalicia && archivoFrances);
+    const hayAlMenosUno = Object.keys(archivos).length > 0;
+    document.getElementById('btnGenerar').disabled = !hayAlMenosUno;
   }
-
-  const zGalicia = setupDropzone('dropGalicia', 'fileGalicia', 'infoGalicia', (file) => {
-    archivoGalicia = file;
-    zGalicia.info.textContent = file.name;
-    zGalicia.drop.classList.add('completo');
-    actualizarBoton();
-  });
-
-  const zFrances = setupDropzone('dropFrances', 'fileFrances', 'infoFrances', (file) => {
-    archivoFrances = file;
-    zFrances.info.textContent = file.name;
-    zFrances.drop.classList.add('completo');
-    actualizarBoton();
-  });
 
   let intervaloReloj = null;
   let segundos = 0;
@@ -277,8 +315,14 @@
 
     try {
       const formData = new FormData();
-      formData.append('galicia', archivoGalicia);
-      formData.append('frances', archivoFrances);
+      // Se agregan en el orden fijo de BANCOS, salteando los que no se cargaron
+      // — así el índice dataN (0, 1, 2...) que arma n8n queda predecible aunque
+      // falten bancos en el medio del orden.
+      BANCOS.forEach(banco => {
+        if (archivos[banco.key]) {
+          formData.append(banco.key, archivos[banco.key]);
+        }
+      });
 
       const resp = await fetch(WEBHOOK_URL, {
         method: 'POST',
@@ -302,10 +346,8 @@
         'Si no se abrió solo, tocá el link:<br>' +
         '<a class="abrir-link" href="' + url + '" target="_blank" rel="noopener">Abrir reporte de Cheques Rechazados</a>';
 
-      // Intenta abrirlo automáticamente en pestaña nueva
       const nuevaVentana = window.open(url, '_blank');
       if (!nuevaVentana) {
-        // El navegador bloqueó el popup: el link de arriba queda como respaldo
         console.warn('El navegador bloqueó la apertura automática. Usar el link manual.');
       }
 
