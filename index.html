@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Cheques Rechazados</title>
+<style>
+  :root {
+    --navy: #0f172a;
+    --navy-2: #1e293b;
+    --blue: #3b82f6;
+    --blue-dark: #2563eb;
+    --bg: #eef1f6;
+    --ink: #1e293b;
+    --muted: #64748b;
+    --red: #dc2626;
+    --green: #059669;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: var(--ink);
+    padding: 24px;
+  }
+  .card {
+    width: 100%;
+    max-width: 480px;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(15,23,42,.08);
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+  }
+  .card-header {
+    background: linear-gradient(135deg, var(--navy), var(--navy-2));
+    color: #fff;
+    padding: 28px 32px;
+    border-bottom: 4px solid var(--blue);
+  }
+  .card-header h1 {
+    margin: 0;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .card-header p {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #94a3b8;
+  }
+  .card-body {
+    padding: 32px;
+    text-align: center;
+  }
+  #btnGenerar {
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--blue);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  #btnGenerar:hover:not(:disabled) { background: var(--blue-dark); }
+  #btnGenerar:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+  #estado { margin-top: 22px; display: none; }
+  #estado.visible { display: block; }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    margin: 0 auto 14px;
+    border: 4px solid #dbeafe;
+    border-top-color: var(--blue);
+    border-radius: 50%;
+    animation: girar 0.9s linear infinite;
+  }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
+  #mensajeEstado {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  #cronometro {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .resultado {
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    text-align: left;
+    display: none;
+  }
+  .resultado.visible { display: block; }
+  .resultado.ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+  .resultado.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+  .resultado a.abrir-link {
+    display: inline-block;
+    margin-top: 10px;
+    color: var(--blue-dark);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .resultado a.abrir-link:hover { text-decoration: underline; }
+
+  .footer-nota {
+    margin-top: 20px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <h1>Control de Cheques Rechazados</h1>
+    <p>Cruce entre extracto bancario y líneas cargadas en Odoo</p>
+  </div>
+  <div class="card-body">
+    <button id="btnGenerar" onclick="generarReporte()">Generar reporte actualizado</button>
+
+    <div id="estado">
+      <div class="spinner"></div>
+      <div id="mensajeEstado">
+        Corriendo el cruce contra Odoo y los extractos bancarios...<br>
+        Esto tarda entre 3 y 4 minutos. No cierres esta pestaña.
+      </div>
+      <div style="margin-top:10px;">⏱ <span id="cronometro">00:00</span></div>
+    </div>
+
+    <div id="resultado" class="resultado"></div>
+
+    <div class="footer-nota">Top Neumáticos S.R.L.</div>
+  </div>
+</div>
+
+<script>
+  // ⚠️ Si el link de ngrok cambia, actualizar acá:
+  const WEBHOOK_URL = "https://envy-recollect-last.ngrok-free.dev/webhook/cheques-rechazados";
+
+  let intervaloReloj = null;
+  let segundos = 0;
+
+  function formatearTiempo(s) {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const ss = (s % 60).toString().padStart(2, '0');
+    return m + ':' + ss;
+  }
+
+  async function generarReporte() {
+    const btn = document.getElementById('btnGenerar');
+    const estado = document.getElementById('estado');
+    const resultado = document.getElementById('resultado');
+
+    btn.disabled = true;
+    btn.textContent = 'Generando...';
+    resultado.classList.remove('visible', 'ok', 'error');
+    resultado.innerHTML = '';
+    estado.classList.add('visible');
+
+    segundos = 0;
+    document.getElementById('cronometro').textContent = formatearTiempo(segundos);
+    intervaloReloj = setInterval(() => {
+      segundos++;
+      document.getElementById('cronometro').textContent = formatearTiempo(segundos);
+    }, 1000);
+
+    try {
+      const resp = await fetch(WEBHOOK_URL, { method: 'GET' });
+
+      if (!resp.ok) {
+        throw new Error('El servidor respondió con error ' + resp.status);
+      }
+
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+
+      estado.classList.remove('visible');
+      resultado.classList.add('visible', 'ok');
+      resultado.innerHTML =
+        '✅ Reporte generado (tardó ' + formatearTiempo(segundos) + ').<br>' +
+        'Si no se abrió solo, tocá el link:<br>' +
+        '<a class="abrir-link" href="' + url + '" target="_blank" rel="noopener">Abrir reporte de Cheques Rechazados</a>';
+
+      // Intenta abrirlo automáticamente en pestaña nueva
+      const nuevaVentana = window.open(url, '_blank');
+      if (!nuevaVentana) {
+        // El navegador bloqueó el popup: el link de arriba queda como respaldo
+        console.warn('El navegador bloqueó la apertura automática. Usar el link manual.');
+      }
+
+    } catch (err) {
+      estado.classList.remove('visible');
+      resultado.classList.add('visible', 'error');
+      resultado.innerHTML =
+        '❌ No se pudo generar el reporte.<br>' +
+        'Puede ser que el túnel (ngrok) o el workflow de n8n estén apagados. ' +
+        'Avisale a Lucas.<br><br>' +
+        '<span style="font-size:12px; opacity:.8;">Detalle técnico: ' + err.message + '</span>';
+    } finally {
+      clearInterval(intervaloReloj);
+      btn.disabled = false;
+      btn.textContent = 'Generar reporte actualizado';
+    }
+  }
+</script>
+
+</body>
+</html>
