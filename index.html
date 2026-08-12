@@ -211,9 +211,7 @@
       resultado.classList.add('visible', 'error');
       resultado.innerHTML =
         '❌ No se pudo generar el reporte.<br>' +
-        'Puede ser que el túnel (ngrok) o el workflow de n8n estén apagados. ' +
-        'Avisale a Lucas.<br><br>' +
-        '<span style="font-size:12px; opacity:.8;">Detalle técnico: ' + err.message + '</span>';
+        'Avisale a Fabrizio.';
     } finally {
       clearInterval(intervaloReloj);
       btn.disabled = false;
