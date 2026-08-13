@@ -316,12 +316,18 @@
     try {
       const formData = new FormData();
       // Se manda SIEMPRE una parte por cada banco, en el orden fijo de BANCOS
-      // — el que no se cargó va como archivo vacío (0 bytes), así data0..data5
-      // en n8n nunca se corren de posición, mandes lo que mandes.
+      // — el que no se cargó va como archivo vacío (1 byte). El nombre real
+      // del banco lo carga con el nombre que traiga del banco (variable mes
+      // a mes), así que se RENOMBRA acá a un nombre fijo ("galicia.xlsx",
+      // "corrientes.csv", etc.) — n8n no respeta el orden de envío para
+      // asignar data0/data1/etc, así que del otro lado identificamos cada
+      // banco por este nombre de archivo, no por la posición.
       BANCOS.forEach(banco => {
-        // 1 byte en vez de 0: algunas versiones de n8n rompen el parseo
-        // multipart cuando una parte del form-data llega con 0 bytes exactos.
-        const archivo = archivos[banco.key] || new File([' '], banco.key + '_vacio.xlsx');
+        const extension = banco.key === 'corrientes' ? '.csv' : '.xlsx';
+        const original = archivos[banco.key];
+        const archivo = original
+          ? new File([original], banco.key + extension, { type: original.type })
+          : new File([' '], banco.key + '_vacio' + extension);
         formData.append(banco.key, archivo);
       });
 
