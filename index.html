@@ -231,7 +231,7 @@
 <script>
   // ⚠️ URL DE TEST — recordá volver a la de producción antes de compartir el link:
   // https://envy-recollect-last.ngrok-free.dev/webhook/cheques-rechazados
-  const WEBHOOK_URL = "https://envy-recollect-last.ngrok-free.dev/webhook/cheques-rechazados";
+  const WEBHOOK_URL = "https://envy-recollect-last.ngrok-free.dev/webhook-test/cheques-rechazados";
 
   // Orden fijo: define qué campo (dataN) recibe cada banco en n8n.
   // Si agregás o reordenás bancos acá, hay que actualizar los nodos
@@ -319,7 +319,9 @@
       // — el que no se cargó va como archivo vacío (0 bytes), así data0..data5
       // en n8n nunca se corren de posición, mandes lo que mandes.
       BANCOS.forEach(banco => {
-        const archivo = archivos[banco.key] || new File([], banco.key + '_vacio.xlsx');
+        // 1 byte en vez de 0: algunas versiones de n8n rompen el parseo
+        // multipart cuando una parte del form-data llega con 0 bytes exactos.
+        const archivo = archivos[banco.key] || new File([' '], banco.key + '_vacio.xlsx');
         formData.append(banco.key, archivo);
       });
 
